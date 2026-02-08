@@ -20,6 +20,11 @@ public:
     // for future use, sub-classes SHOULD call this from their begin()
     startup_reason = BD_STARTUP_NORMAL;
 
+  #ifdef BOARD_HAS_PSRAM
+    psramInit();
+    heap_caps_malloc_extmem_enable(64);
+  #endif
+
   #ifdef ESP32_CPU_FREQ
     setCpuFrequencyMhz(ESP32_CPU_FREQ);
   #endif

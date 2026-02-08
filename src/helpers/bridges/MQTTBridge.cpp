@@ -50,23 +50,23 @@ static bool isWiFiConfigValid(const NodePrefs* prefs) {
 // Use psram_free() for any pointer returned by psram_malloc().
 static void* psram_malloc(size_t size) {
   if (size == 0) return nullptr;
-#if defined(ESP_PLATFORM) && defined(BOARD_HAS_PSRAM)
-  void* p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
-  if (p != nullptr) return p;
-  p = heap_caps_malloc(size, MALLOC_CAP_INTERNAL);
-  return p;
-#else
+// #if defined(ESP_PLATFORM) && defined(BOARD_HAS_PSRAM)
+//   void* p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+//   if (p != nullptr) return p;
+//   p = heap_caps_malloc(size, MALLOC_CAP_INTERNAL);
+//   return p;
+// #else
   return malloc(size);
-#endif
+// #endif
 }
 
 static void psram_free(void* ptr) {
   if (ptr == nullptr) return;
-#if defined(ESP_PLATFORM)
-  heap_caps_free(ptr);
-#else
+// #if defined(ESP_PLATFORM)
+//   heap_caps_free(ptr);
+// #else
   free(ptr);
-#endif
+// #endif
 }
 
 // Time (millis()) when WiFi was last seen connected; 0 when disconnected. Used for get wifi.status uptime.
@@ -736,7 +736,7 @@ void MQTTBridge::mqttTaskLoop() {
             MQTT_DEBUG_PRINTLN("Status published successfully, next publish in %lu ms", _status_interval);
             // If we're in the hole but just proved connectivity, recover sooner than the dedicated pressure timer
             size_t max_alloc = ESP.getMaxAllocHeap();
-            if (max_alloc < 58000 && (now - _last_fragmentation_recovery) > 300000) {
+            if (max_alloc < 20000 && (now - _last_fragmentation_recovery) > 300000) {
               _last_fragmentation_recovery = now;
               _fragmentation_pressure_since = 0;  // Reset pressure timer so dedicated check doesn't fire again soon
               MQTT_DEBUG_PRINTLN("Fragmentation recovery after status (max_alloc=%d)", (int)max_alloc);
@@ -1137,7 +1137,7 @@ void MQTTBridge::runCriticalMemoryCheckAndRecovery() {
   const unsigned long PRESSURE_WINDOW_MS = 180000;           // Recover if under pressure for 3 min
   const unsigned long RECOVERY_THROTTLE_MS = 300000;         // 5 min between recovery runs
   const unsigned long CRITICAL_LOG_INTERVAL_MS = 900000;     // Log CRITICAL/WARNING/client count at most every 15 min
-  const size_t PRESSURE_THRESHOLD = 58000;                   // max_alloc below this = under pressure
+  const size_t PRESSURE_THRESHOLD = 28000;                   // max_alloc below this = under pressure
 
   unsigned long now = millis();
   if (now - _last_critical_check_run < CRITICAL_CHECK_INTERVAL_MS) {
@@ -1169,9 +1169,9 @@ void MQTTBridge::runCriticalMemoryCheckAndRecovery() {
   static unsigned long last_critical_log = 0;
   if (now - last_critical_log >= CRITICAL_LOG_INTERVAL_MS) {
     last_critical_log = now;
-    if (max_alloc < 40000) {
+    if (max_alloc < 10000) {
       MQTT_DEBUG_PRINTLN("CRITICAL: Low memory! Free: %d, Max: %d", (int)free_h, (int)max_alloc);
-    } else if (max_alloc < 60000) {
+    } else if (max_alloc < 30000) {
       MQTT_DEBUG_PRINTLN("WARNING: Memory pressure. Free: %d, Max: %d", (int)free_h, (int)max_alloc);
     }
     int n_main = (_mqtt_client != nullptr) ? 1 : 0;
@@ -1626,7 +1626,7 @@ bool MQTTBridge::publishStatus() {
             if (_cached_has_analyzer_servers) {
               #ifdef ESP32
               size_t max_alloc = ESP.getMaxAllocHeap();
-              if (max_alloc >= 60000) {  // Same threshold as main memory check
+              if (max_alloc >= 30000) {  // Same threshold as main memory check
               #endif
                 // publishToAnalyzerServers returns true if at least one publish succeeded
                 if (publishToAnalyzerServers(topic, json_buffer, true)) {  // retained=true for status
@@ -1673,7 +1673,7 @@ void MQTTBridge::publishPacket(mesh::Packet* packet, bool is_tx,
   unsigned long now = millis();
   if (now - _last_memory_check > 5000) {  // Check every 5 seconds
     size_t max_alloc = ESP.getMaxAllocHeap();
-    if (max_alloc < 60000) {  // Less than 60KB max alloc = severe fragmentation
+    if (max_alloc < 30000) {  // Less than 60KB max alloc = severe fragmentation
       _skipped_publishes++;
       static unsigned long last_skip_log = 0;
       if (now - last_skip_log > 60000) {  // Log every minute
@@ -1798,7 +1798,7 @@ void MQTTBridge::publishPacket(mesh::Packet* packet, bool is_tx,
     // Skip analyzer servers if memory is severely fragmented (they're less critical than custom brokers)
     #ifdef ESP32
     size_t max_alloc = ESP.getMaxAllocHeap();
-    if (max_alloc >= 60000) {  // Only publish to analyzer servers if memory is OK
+    if (max_alloc >= 30000) {  // Only publish to analyzer servers if memory is OK
       publishToAnalyzerServers(topic, active_buffer, false);
     }
     #else
@@ -1914,7 +1914,7 @@ void MQTTBridge::publishRaw(mesh::Packet* packet) {
     // Skip analyzer servers if memory is severely fragmented (they're less critical than custom brokers)
     #ifdef ESP32
     size_t max_alloc = ESP.getMaxAllocHeap();
-    if (max_alloc >= 60000) {  // Only publish to analyzer servers if memory is OK
+    if (max_alloc >= 30000) {  // Only publish to analyzer servers if memory is OK
       publishToAnalyzerServers(topic, active_buffer, false);
     }
     #else
